@@ -1,0 +1,45 @@
+import cv2
+import numpy as np
+from tensorflow.keras.models import load_model
+
+# Load the pre-trained face detection model (e.g., Haar Cascade or DNN)
+face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')  # Path to Haar Cascade file
+# Load the pre-trained face mask classification model
+mask_model = load_model('mask_model.h5')  # Path to your trained mask classification model
+
+def detect_face(frame):
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+
+    for (x, y, w, h) in faces:
+        face_roi = gray[y:y + h, x:x + w]
+        resized_face = cv2.resize(face_roi, (128, 128))
+        normalized_face = resized_face / 255.0
+        reshaped_face = np.reshape(normalized_face, (1, 128, 128, 1))
+        mask_result = mask_model.predict(reshaped_face)
+
+        label = "Mask" if mask_result > 0.5 else "No Mask"
+        color = (0, 255, 0) if label == "Mask" else (0, 0, 255)
+
+        cv2.rectangle(frame, (x, y), (x + w, y + h), color, 2)
+        cv2.putText(frame, label, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+
+    return frame
+
+# Initialize the webcam
+cap = cv2.VideoCapture(0)  # Use 0 for the default camera, or change to another index for different cameras
+
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    frame = detect_face(frame)
+    
+    cv2.imshow('Face Mask Detector', frame)
+
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+cap.release()
+cv2.destroyAllWindows()
